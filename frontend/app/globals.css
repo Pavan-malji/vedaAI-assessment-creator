@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --background: #EAECEF;
+  --foreground: #111112;
+  
+  --brand-sidebar-bg: #FFFFFF;
+  --brand-orange: #FF5E24;
+  --brand-orange-glow: rgba(255, 94, 36, 0.15);
+  --brand-dark: #1E1E20;
+  --brand-light-gray: #F0F2F5;
+  --brand-text-muted: #6B7280;
+  --brand-border: #E5E7EB;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  --color-brand-sidebar-bg: var(--brand-sidebar-bg);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-glow: var(--brand-orange-glow);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light-gray: var(--brand-light-gray);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-border: var(--brand-border);
+  
+  --font-sans: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+  
+  --radius-3xl: 1.5rem;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Animations */
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.animate-sparkle {
+  animation: sparkle 2s infinite ease-in-out;
+}
+
+/* CSS Print Styles for A4 Exam Paper */
+@media print {
+  body {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    font-family: 'Inter', sans-serif !important;
+  }
+  
+  /* Hide sidebar, header, and other screen controls when printing */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Make the main stage fill the printed area */
+  .print-area-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+  
+  .print-paper {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  
+  /* Ensure page breaks are handled nicely */
+  .page-break {
+    page-break-before: always;
+  }
+}
