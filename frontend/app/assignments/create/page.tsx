@@ -14,13 +14,23 @@ import {
 } from 'lucide-react';
 
 import { useVedaStore, Assignment } from '../../../lib/store';
-import { generateQuestionsForSubject } from '../../../lib/generator';
+import { useAssignmentStore } from '../../../lib/assignmentStore';
+import { createAssignment } from '../../../lib/api';
 import UploadDropzone from '../../../components/UploadDropzone';
 import QuestionTypeTable, { QuestionTypeRow } from '../../../components/QuestionTypeTable';
 
 export default function CreateAssignment() {
   const router = useRouter();
   const addAssignment = useVedaStore((state) => state.addAssignment);
+  const {
+    setAssignmentConfig,
+    setAssignmentId,
+    setJobId,
+    setJobStatus,
+    setLoading,
+    setError: setStoreError,
+    isLoading,
+  } = useAssignmentStore();
 
   // Form states
   const [title, setTitle] = useState('');
@@ -31,6 +41,7 @@ export default function CreateAssignment() {
   const [dueDate, setDueDate] = useState('');
   
   const [fileUploaded, setFileUploaded] = useState<{ name: string; size: string } | null>(null);
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null);
   
   const [questionTypes, setQuestionTypes] = useState<QuestionTypeRow[]>([
     { id: 'row-1', type: 'Multiple Choice Questions', count: 4, marks: 1 },
@@ -83,51 +94,89 @@ export default function CreateAssignment() {
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!handleValidation()) return;
 
-    const assignmentId = 'assign-' + Date.now();
     const totalMarks = questionTypes.reduce((acc, r) => acc + (r.count * r.marks), 0);
+    const numberOfQuestions = questionTypes.reduce((acc, r) => acc + r.count, 0);
+    const types = questionTypes.map(q => q.type);
 
-    // Generate dynamic questions based on fields
-    const { questions, answerKey } = generateQuestionsForSubject(
+    const config = {
       subject,
-      classLevel,
-      questionTypes,
-      additionalInfo
-    );
-
-    // Date formatting (convert YYYY-MM-DD to DD-MM-YYYY)
-    const formattedDueDate = dueDate.split('-').reverse().join('-');
-    const today = new Date();
-    const formattedToday = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
-
-    const newAssignment: Assignment = {
-      id: assignmentId,
-      title: title,
-      assignedDate: formattedToday,
-      dueDate: formattedDueDate,
-      status: 'draft', // Draft status initially, transitions during preview queue simulation
-      subject,
-      class: classLevel,
-      schoolName,
-      timeAllowed,
-      maxMarks: totalMarks,
-      additionalInfo,
-      fileUploaded,
-      questionTypes: questionTypes.map(q => ({ type: q.type, count: q.count, marks: q.marks })),
-      questions,
-      answerKey
+      topic: title,
+      dueDate,
+      questionTypes: types,
+      numberOfQuestions,
+      marksPerQuestion: Math.round(totalMarks / numberOfQuestions),
+      totalMarks,
+      additionalInstructions: additionalInfo,
     };
 
-    addAssignment(newAssignment);
-    
-    // Redirect to preview screen with WebSocket generation visual trigger
-    router.push(`/assignments/${assignmentId}/preview?trigger=true`);
+    try {
+      setLoading(true);
+      setStoreError(null);
+
+      const data = await createAssignment(config);
+
+      // Persist config and IDs in the assignment store
+      setAssignmentConfig(config);
+      setAssignmentId(data.assignmentId);
+      setJobId(data.jobId);
+      setJobStatus('pending');
+
+      // Date formatting (convert YYYY-MM-DD to DD-MM-YYYY)
+      const formattedDueDate = dueDate.split('-').reverse().join('-');
+      const today = new Date();
+      const formattedToday = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+
+      const newAssignment: Assignment = {
+        id: data.assignmentId,
+        title,
+        assignedDate: formattedToday,
+        dueDate: formattedDueDate,
+        status: 'draft',
+        subject,
+        class: classLevel,
+        schoolName,
+        timeAllowed,
+        maxMarks: totalMarks,
+        additionalInfo,
+        fileUploaded,
+        questionTypes: questionTypes.map(q => ({ type: q.type, count: q.count, marks: q.marks })),
+        questions: [],
+        answerKey: [],
+      };
+
+      addAssignment(newAssignment);
+      setValidationError('');
+
+      router.push(`/assignments/${data.assignmentId}/preview?trigger=true`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong connecting to backend';
+      setValidationError(msg);
+      setStoreError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="max-w-190 mx-auto space-y-6 pt-2">
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white border border-brand-border shadow-2xl p-6 text-center space-y-4 mx-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF3EF]">
+              <div className="h-6 w-6 rounded-full border-2 border-brand-orange border-t-transparent animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-extrabold text-brand-dark tracking-tight">Generating question paper...</h3>
+              <p className="text-xs font-semibold text-gray-500">
+                Saving the assignment, queueing the job, and preparing the preview.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Step Indicators */}
       <div className="no-print w-full flex items-center justify-between gap-4 p-1 bg-white border border-[#E9ECEF] rounded-2xl mb-2">
@@ -169,12 +218,13 @@ export default function CreateAssignment() {
               type="text"
               placeholder="e.g. Quiz on Electricity"
               value={title}
+              disabled={isLoading}
               onChange={(e) => setTitle(e.target.value)}
               className="
                 w-full px-4 py-2.5 rounded-xl border border-brand-border
                 text-sm font-semibold text-brand-dark placeholder-gray-400
                 focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                transition-all duration-200 bg-gray-50/20
+                transition-all duration-200 bg-gray-50/20 disabled:cursor-not-allowed disabled:opacity-70
               "
             />
           </div>
@@ -185,12 +235,13 @@ export default function CreateAssignment() {
             <input
               type="text"
               value={schoolName}
+              disabled={isLoading}
               onChange={(e) => setSchoolName(e.target.value)}
               className="
                 w-full px-4 py-2.5 rounded-xl border border-brand-border
                 text-sm font-semibold text-brand-dark placeholder-gray-400
                 focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                transition-all duration-200 bg-gray-50/20
+                transition-all duration-200 bg-gray-50/20 disabled:cursor-not-allowed disabled:opacity-70
               "
             />
           </div>
@@ -200,11 +251,12 @@ export default function CreateAssignment() {
             <label className="text-xs font-bold text-gray-700">Subject</label>
             <select
               value={subject}
+              disabled={isLoading}
               onChange={(e) => setSubject(e.target.value)}
               className="
                 w-full px-4 py-2.5 rounded-xl border border-brand-border bg-white
                 text-sm font-semibold text-brand-dark focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                transition-all duration-200 cursor-pointer
+                transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70
               "
             >
               <option value="Science">Science</option>
@@ -219,11 +271,12 @@ export default function CreateAssignment() {
             <label className="text-xs font-bold text-gray-700">Class</label>
             <select
               value={classLevel}
+              disabled={isLoading}
               onChange={(e) => setClassLevel(e.target.value)}
               className="
                 w-full px-4 py-2.5 rounded-xl border border-brand-border bg-white
                 text-sm font-semibold text-brand-dark focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                transition-all duration-200 cursor-pointer
+                transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70
               "
             >
               <option value="5th">5th Grade</option>
@@ -244,11 +297,12 @@ export default function CreateAssignment() {
               type="text"
               placeholder="e.g. 45 minutes"
               value={timeAllowed}
+              disabled={isLoading}
               onChange={(e) => setTimeAllowed(e.target.value)}
               className="
                 w-full px-4 py-2.5 rounded-xl border border-brand-border
                 text-sm font-semibold text-brand-dark focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                transition-all duration-200 bg-gray-50/20
+                transition-all duration-200 bg-gray-50/20 disabled:cursor-not-allowed disabled:opacity-70
               "
             />
           </div>
@@ -260,11 +314,12 @@ export default function CreateAssignment() {
               <input
                 type="date"
                 value={dueDate}
+                disabled={isLoading}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="
                   w-full px-4 py-2.5 rounded-xl border border-brand-border bg-white
                   text-sm font-semibold text-brand-dark focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30
-                  transition-all duration-200 cursor-pointer pr-10
+                  transition-all duration-200 cursor-pointer pr-10 disabled:cursor-not-allowed disabled:opacity-70
                 "
               />
               <Calendar className="absolute right-3.5 top-3.5 h-4.5 w-4.5 text-gray-400 pointer-events-none" />
@@ -275,7 +330,13 @@ export default function CreateAssignment() {
         {/* File Drag and Drop zone */}
         <div className="space-y-2 pt-2">
           <label className="text-xs font-bold text-gray-700">Attachment Material (Optional)</label>
-          <UploadDropzone onFileSelect={setFileUploaded} selectedFile={fileUploaded} />
+          <UploadDropzone
+            onFileSelect={setFileUploaded}
+            selectedFile={fileUploaded}
+            errorMessage={fileUploadError}
+            onErrorMessageChange={setFileUploadError}
+            disabled={isLoading}
+          />
         </div>
 
         {/* Dynamic Question Configurations Table */}
@@ -303,11 +364,12 @@ export default function CreateAssignment() {
               placeholder="e.g. Generate a question paper for 3 hour exam duration..."
               rows={4}
               value={additionalInfo}
+              disabled={isLoading}
               onChange={(e) => setAdditionalInfo(e.target.value)}
               className="
                 w-full p-4 text-sm font-semibold text-brand-dark placeholder-gray-400
                 border-none resize-none focus:outline-none focus:ring-1 focus:ring-brand-orange/20
-                pr-12 bg-transparent
+                pr-12 bg-transparent disabled:cursor-not-allowed disabled:opacity-70
               "
             />
             {/* Listening Mic Action Button */}
@@ -333,6 +395,7 @@ export default function CreateAssignment() {
         <button
           type="button"
           onClick={() => router.push('/assignments')}
+          disabled={isLoading}
           className="
             flex items-center gap-2 px-5 py-3 rounded-full border border-brand-border bg-white text-gray-600
             text-xs font-bold hover:bg-gray-50 hover:text-brand-dark transition-all duration-200 cursor-pointer
@@ -345,14 +408,15 @@ export default function CreateAssignment() {
         <button
           type="button"
           onClick={handleNext}
+          disabled={isLoading}
           className="
             flex items-center gap-2 px-6 py-3.5 rounded-full bg-brand-dark text-white
             text-xs font-bold tracking-wide hover:bg-brand-orange hover:shadow-lg hover:shadow-brand-orange-glow
-            active:scale-98 transition-all duration-300 cursor-pointer
+            active:scale-98 transition-all duration-300 cursor-pointer disabled:cursor-not-allowed disabled:opacity-80
           "
         >
-          <span>Generate Assessment</span>
-          <ArrowRight className="h-4 w-4" />
+          <span>{isLoading ? 'Generating...' : 'Generate Assessment'}</span>
+          <ArrowRight className={`h-4 w-4 ${isLoading ? 'animate-pulse' : ''}`} />
         </button>
       </div>
     </div>

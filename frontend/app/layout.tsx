@@ -1,7 +1,22 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "VedaAI - AI Assessment Creator",
@@ -14,21 +29,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <head>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" />
-      </head>
-      <body className="h-full bg-background text-foreground font-sans flex overflow-hidden">
+    <html lang="en" className={`h-full antialiased ${plusJakartaSans.variable} ${inter.variable}`}>
+      <body className="app-shell h-full bg-background text-foreground font-sans flex overflow-hidden">
         {/* Persistent left sidebar */}
         <Sidebar />
         
         {/* Main stage right side */}
-        <div className="flex-grow flex flex-col h-screen overflow-hidden">
+        <div className="app-shell-main grow flex flex-col h-screen overflow-hidden">
           {/* Persistent header */}
           <Header />
           
           {/* Scrollable contents page */}
-          <main className="flex-grow overflow-y-auto px-6 md:px-8 pb-12">
+          <main className="app-shell-content grow overflow-y-auto px-6 md:px-8 pb-12">
             {children}
           </main>
         </div>

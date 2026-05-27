@@ -78,17 +78,20 @@ export default function Sidebar() {
 
         {/* Action Button: Create Assignment */}
         <div className="px-1 mb-6">
-          <Link href="/assignments/create" onClick={() => setIsOpen(false)}>
-            <button className="
+          <Link
+            href="/assignments/create"
+            onClick={() => setIsOpen(false)}
+            className="
               group relative flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-full
-              bg-brand-dark text-white text-sm font-semibold tracking-wide
+              bg-brand-dark text-white text-sm font-semibold tracking-wide cursor-pointer
               border border-transparent hover:border-brand-orange
               shadow-lg shadow-black/10 hover:shadow-brand-orange-glow
               transition-all duration-300 active:scale-98
-            ">
-              <Sparkles className="h-4 w-4 text-brand-orange animate-pulse" />
-              <span>Create Assignment</span>
-            </button>
+            "
+          >
+            <Sparkles className="h-4 w-4 text-brand-orange animate-pulse" />
+            <span>Create Assignment</span>
+            
           </Link>
         </div>
 

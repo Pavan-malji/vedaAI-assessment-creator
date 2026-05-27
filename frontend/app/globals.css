@@ -25,8 +25,8 @@
   --color-brand-text-muted: var(--brand-text-muted);
   --color-brand-border: var(--brand-border);
   
-  --font-sans: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  --font-inter: 'Inter', sans-serif;
+  --font-sans: var(--font-plus-jakarta), 'Plus Jakarta Sans', sans-serif;
+  --font-inter: var(--font-inter), 'Inter', sans-serif;
   
   --radius-3xl: 1.5rem;
 }
@@ -66,15 +66,60 @@ body {
 
 /* CSS Print Styles for A4 Exam Paper */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+  }
+
   body {
     background-color: #FFFFFF !important;
     color: #000000 !important;
     font-family: 'Inter', sans-serif !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+  }
+
+  .app-shell-main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .app-shell-content {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
   
   /* Hide sidebar, header, and other screen controls when printing */
   .no-print {
     display: none !important;
+  }
+
+  .print-preview-root {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   
   /* Make the main stage fill the printed area */
@@ -82,17 +127,41 @@ body {
     padding: 0 !important;
     margin: 0 !important;
     background: transparent !important;
+    overflow: visible !important;
   }
   
   .print-paper {
     border: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 10mm !important;
     margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     background-color: #FFFFFF !important;
     color: #000000 !important;
+    border-radius: 0 !important;
+    page-break-after: auto;
+  }
+
+  .print-area {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .print-section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .print-question-item {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .print-area > * {
+    width: 100% !important;
+    max-width: 100% !important;
   }
   
   /* Ensure page breaks are handled nicely */

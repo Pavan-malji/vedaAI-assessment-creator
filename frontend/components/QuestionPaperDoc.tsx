@@ -89,7 +89,7 @@ export default function QuestionPaperDoc({
       {/* Sections and Questions */}
       <div className="space-y-8">
         {Object.entries(sections).map(([sectionName, sectionQuestions]) => (
-          <div key={sectionName} className="space-y-5">
+          <div key={sectionName} className="print-section space-y-5">
             {/* Section Header */}
             <div className="text-center space-y-1">
               <h2 className="text-lg font-extrabold text-gray-900 uppercase tracking-wider">
@@ -106,7 +106,7 @@ export default function QuestionPaperDoc({
             {/* Questions List */}
             <ol className="space-y-4 text-sm">
               {sectionQuestions.map((q, idx) => (
-                <li key={q.id} className="flex items-start justify-between gap-4 group">
+                <li key={q.id} className="print-question-item flex items-start justify-between gap-4 group">
                   <div className="flex items-start gap-2.5">
                     <span className="font-extrabold text-gray-900">{idx + 1}.</span>
                     <div className="space-y-1.5">

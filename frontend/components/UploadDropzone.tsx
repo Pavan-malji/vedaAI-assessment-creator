@@ -6,12 +6,48 @@ import { UploadCloud, FileText, X } from 'lucide-react';
 interface UploadDropzoneProps {
   onFileSelect: (file: { name: string; size: string } | null) => void;
   selectedFile: { name: string; size: string } | null;
+  errorMessage?: string | null;
+  onErrorMessageChange?: (message: string | null) => void;
+  disabled?: boolean;
 }
 
-export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDropzoneProps) {
+export default function UploadDropzone({
+  onFileSelect,
+  selectedFile,
+  errorMessage,
+  onErrorMessageChange,
+  disabled = false,
+}: UploadDropzoneProps) {
   const [isDragActive, setIsDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const supportedExtensions = ['pdf', 'txt', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif'];
+  const maxSizeBytes = 10 * 1024 * 1024;
+
+  const validateFile = (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const isSupported = supportedExtensions.includes(extension) || file.type.startsWith('image/');
+
+    if (!isSupported) {
+      onErrorMessageChange?.('Unsupported file type. Please upload a PDF, text file, Word document, or image.');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return false;
+    }
+
+    if (file.size > maxSizeBytes) {
+      onErrorMessageChange?.('File is too large. Please upload a file smaller than 10 MB.');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return false;
+    }
+
+    onErrorMessageChange?.(null);
+    return true;
+  };
 
   const simulateUpload = (name: string, sizeStr: string) => {
     setUploadProgress(0);
@@ -29,6 +65,7 @@ export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDro
   };
 
   const handleDrag = (e: React.DragEvent) => {
+    if (disabled) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -39,34 +76,41 @@ export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDro
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (disabled) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
+      if (!validateFile(file)) return;
       const sizeStr = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
       simulateUpload(file.name, sizeStr);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (!validateFile(file)) return;
       const sizeStr = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
       simulateUpload(file.name, sizeStr);
     }
   };
 
   const onButtonClick = () => {
+    if (disabled) return;
     fileInputRef.current?.click();
   };
 
   const handleRemove = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation();
     onFileSelect(null);
     setUploadProgress(null);
+    onErrorMessageChange?.(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -96,6 +140,7 @@ export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDro
             type="file"
             className="hidden"
             accept=".pdf,.txt,.doc,.docx,image/*"
+            disabled={disabled}
             onChange={handleChange}
           />
           
@@ -123,9 +168,14 @@ export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDro
             
             <button
               type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onButtonClick();
+              }}
+              disabled={disabled}
               className="
                 px-4 py-2 rounded-xl bg-gray-100 hover:bg-brand-orange hover:text-white
-                text-xs font-bold text-gray-700 transition-all duration-200 cursor-pointer
+                text-xs font-bold text-gray-700 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70
               "
             >
               Browse Files
@@ -178,13 +228,20 @@ export default function UploadDropzone({ onFileSelect, selectedFile }: UploadDro
           <button
             type="button"
             onClick={handleRemove}
+            disabled={disabled}
             className="
               flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 hover:bg-red-50
-              text-gray-400 hover:text-red-500 border border-gray-100 transition-colors cursor-pointer
+              text-gray-400 hover:text-red-500 border border-gray-100 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-70
             "
           >
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
+          {errorMessage}
         </div>
       )}
       

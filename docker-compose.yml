@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    container_name: vedaai-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # SAFE FOR DEV: Anonymous volume avoids syncing node_modules to Windows host, massively reducing disk I/O
+      - /app/.next        # SAFE FOR DEV: Blocks massive Next.js cache disk writes to Windows
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      # Disable fallback polling on Windows if native FS events fail, reduces CPU load heavily:
+      - CHOKIDAR_USEPOLLING=false 
+      - WATCHPACK_POLLING=false
+    depends_on:
+      - backend
+    # Reap zombie processes to keep memory lean
+    init: true
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    container_name: vedaai-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules # SAFE FOR DEV: Prevents syncing heavy node_modules back to host
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/vedaai
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - mongodb
+      - redis
+    init: true
+
+  mongodb:
+    image: mongo:7
+    container_name: vedaai-mongo
+    # SAFE FOR DEV: Restrict WiredTiger cache heavily to 0.5 GB to reduce RAM consumption
+    command: ["--wiredTigerCacheSizeGB", "0.5"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    logging:
+      driver: "local"
+      options:
+        max-size: "10m"
+
+  redis:
+    image: redis:7-alpine
+    container_name: vedaai-redis
+    # SAFE FOR DEV: Disable disk persistence (save "") and append-only files to save disk I/O overhead
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    logging:
+      driver: "local"
+      options:
+        max-size: "10m"
+
+volumes:
+  mongo_data:
