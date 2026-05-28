@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { useState, useRef, useEffect, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { MoreVertical, FileText, Trash2, CheckSquare } from 'lucide-react';
-import { Assignment, useVedaStore } from '../lib/store';
+import { Assignment, useDeleteAssignment } from '../lib/store';
 
 interface AssignmentCardProps {
   assignment: Assignment;
 }
 
-export default function AssignmentCard({ assignment }: AssignmentCardProps) {
+function AssignmentCard({ assignment }: AssignmentCardProps) {
   const router = useRouter();
-  const deleteAssignment = useVedaStore((state) => state.deleteAssignment);
+  const deleteAssignment = useDeleteAssignment();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -22,13 +23,11 @@ export default function AssignmentCard({ assignment }: AssignmentCardProps) {
         setShowMenu(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleCardClick = () => {
-    router.push(`/assignments/${assignment.id}/preview`);
-  };
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMenu]);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,8 +41,9 @@ export default function AssignmentCard({ assignment }: AssignmentCardProps) {
   };
 
   return (
-    <div 
-      onClick={handleCardClick}
+    // Entire card is a clickable link — wrapping with Link makes the whole surface navigable
+    <Link
+      href={`/assignments/${assignment.id}/preview`}
       className="
         relative group flex flex-col justify-between w-full min-h-42.5 p-6 rounded-3xl bg-white
         border border-[#EAEDF2] hover:border-brand-orange/20 shadow-sm hover:shadow-md
@@ -81,10 +81,11 @@ export default function AssignmentCard({ assignment }: AssignmentCardProps) {
           </div>
         </div>
 
-        {/* Action Button (Three dots) */}
+        {/* Action Button (Three dots) — stops propagation so it doesn't navigate */}
         <div className="relative" ref={menuRef}>
           <button 
             onClick={(e) => {
+              e.preventDefault();  // prevent Link navigation
               e.stopPropagation();
               setShowMenu(!showMenu);
             }}
@@ -129,6 +130,14 @@ export default function AssignmentCard({ assignment }: AssignmentCardProps) {
           <span className="font-extrabold text-brand-orange bg-[#FFF3EF] px-2 py-0.5 rounded-lg border border-brand-orange/10">{assignment.dueDate}</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders
+export default memo(AssignmentCard, (prevProps, nextProps) => {
+  // Only re-render if assignment data actually changed
+  return prevProps.assignment.id === nextProps.assignment.id &&
+         prevProps.assignment.title === nextProps.assignment.title &&
+         prevProps.assignment.status === nextProps.assignment.status;
+});

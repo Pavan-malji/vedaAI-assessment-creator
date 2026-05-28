@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ChevronDown, ArrowLeft, Grid, LogOut, Settings, UserCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function Header() {
+function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   useEffect(() => {
+    if (!isProfileMenuOpen) return;
+
     const handleOutsideClick = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setIsProfileMenuOpen(false);
@@ -31,7 +33,7 @@ export default function Header() {
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, []);
+  }, [isProfileMenuOpen]);
 
   // Simple path matching for custom breadcrumbs
   const getBreadcrumbs = () => {
@@ -172,3 +174,6 @@ export default function Header() {
     </header>
   );
 }
+
+// Memoize Header to prevent re-renders
+export default memo(Header);

@@ -13,18 +13,18 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { useVedaStore } from '../lib/store';
-import { useState } from 'react';
+import { useAssignmentsCount } from '../lib/store';
+import { useState, memo } from 'react';
 
-export default function Sidebar() {
+function Sidebar() {
   const pathname = usePathname();
-  const assignments = useVedaStore((state) => state.assignments);
+  const assignmentsCount = useAssignmentsCount(); // Optimized selector
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
     { name: 'Home', icon: Home, path: '/' },
     { name: 'My Groups', icon: Users, path: '/groups' },
-    { name: 'Assignments', icon: FileText, path: '/assignments', badge: assignments.length },
+    { name: 'Assignments', icon: FileText, path: '/assignments', badge: assignmentsCount },
     { name: 'AI Teacher\'s Toolkit', icon: Wrench, path: '/toolkit' },
     { name: 'My Library', icon: FolderHeart, path: '/library' },
   ];
@@ -162,3 +162,6 @@ export default function Sidebar() {
     </>
   );
 }
+
+// Memoize Sidebar to prevent re-renders when unrelated state changes
+export default memo(Sidebar);

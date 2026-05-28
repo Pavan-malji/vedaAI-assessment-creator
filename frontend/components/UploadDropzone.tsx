@@ -50,17 +50,26 @@ export default function UploadDropzone({
   };
 
   const simulateUpload = (name: string, sizeStr: string) => {
+    // Use an explicit local counter to avoid calling parent setters
+    // from inside a state updater function (which can trigger React's
+    // setState-in-render detection). Update state normally and call
+    // parent callbacks after clearing the timer.
     setUploadProgress(0);
+    let progress = 0;
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev === null) return 0;
-        if (prev >= 100) {
-          clearInterval(interval);
+      progress += 10;
+      if (progress >= 100) {
+        clearInterval(interval);
+        // show completed state briefly then notify parent
+        setUploadProgress(100);
+        // call parent after letting React apply the final progress state
+        setTimeout(() => {
           onFileSelect({ name, size: sizeStr });
-          return null;
-        }
-        return prev + 10;
-      });
+          setUploadProgress(null);
+        }, 100);
+        return;
+      }
+      setUploadProgress(progress);
     }, 100);
   };
 

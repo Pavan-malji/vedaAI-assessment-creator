@@ -1,6 +1,7 @@
 'use client';
 
 import { Question, AnswerKeyItem } from '../lib/store';
+import { memo, useMemo } from 'react';
 
 interface QuestionPaperDocProps {
   schoolName: string;
@@ -13,7 +14,7 @@ interface QuestionPaperDocProps {
   showAnswerKey?: boolean;
 }
 
-export default function QuestionPaperDoc({
+function QuestionPaperDoc({
   schoolName = 'Delhi Public School, Sector-4, Bokaro',
   subject = 'English',
   className = '5th',
@@ -24,13 +25,15 @@ export default function QuestionPaperDoc({
   showAnswerKey = true,
 }: QuestionPaperDocProps) {
 
-  // Group questions by section
-  const sections = questions.reduce((acc, q) => {
-    const sec = q.section || 'Section A';
-    if (!acc[sec]) acc[sec] = [];
-    acc[sec].push(q);
-    return acc;
-  }, {} as Record<string, Question[]>);
+  // Memoize sections grouping to prevent recalculation
+  const sections = useMemo(() => {
+    return questions.reduce((acc, q) => {
+      const sec = q.section || 'Section A';
+      if (!acc[sec]) acc[sec] = [];
+      acc[sec].push(q);
+      return acc;
+    }, {} as Record<string, Question[]>);
+  }, [questions]);
 
   // Difficulty badge colors
   const getDifficultyColor = (difficulty: string) => {
@@ -166,3 +169,17 @@ export default function QuestionPaperDoc({
     </div>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders
+export default memo(QuestionPaperDoc, (prevProps, nextProps) => {
+  return (
+    prevProps.schoolName === nextProps.schoolName &&
+    prevProps.subject === nextProps.subject &&
+    prevProps.className === nextProps.className &&
+    prevProps.timeAllowed === nextProps.timeAllowed &&
+    prevProps.maxMarks === nextProps.maxMarks &&
+    prevProps.showAnswerKey === nextProps.showAnswerKey &&
+    prevProps.questions.length === nextProps.questions.length &&
+    prevProps.answerKey.length === nextProps.answerKey.length
+  );
+});

@@ -8,25 +8,33 @@ import { QuestionPaper } from '../lib/types';
 /**
  * Connects to the backend Socket.io server and listens for job events
  * for the given assignmentId. Updates the Zustand assignment store accordingly.
+ * 
+ * OPTIMIZED: Stable references to prevent infinite reconnection loops
  */
 export function useSocket(assignmentId: string | null) {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const setJobStatus = useAssignmentStore((s) => s.setJobStatus);
-  const setPaper = useAssignmentStore((s) => s.setPaper);
-  const setError = useAssignmentStore((s) => s.setError);
+  // Get stable store references using useRef to prevent dependency changes
+  const storeRef = useRef(useAssignmentStore.getState());
+  
+  useEffect(() => {
+    // Update store ref on each render but don't trigger effect
+    storeRef.current = useAssignmentStore.getState();
+  });
 
   useEffect(() => {
     if (!assignmentId) return;
 
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 
     console.log(`[useSocket] Connecting to ${socketUrl} for assignment ${assignmentId}`);
 
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;
@@ -45,7 +53,7 @@ export function useSocket(assignmentId: string | null) {
     socket.on('job:progress', (data: { assignmentId: string; status: string; progress: number }) => {
       if (data.assignmentId === assignmentId) {
         console.log(`[useSocket] job:progress for ${assignmentId}:`, data);
-        setJobStatus('processing');
+        storeRef.current.setJobStatus('processing');
       }
     });
 
@@ -53,8 +61,8 @@ export function useSocket(assignmentId: string | null) {
     socket.on('job:done', (data: { assignmentId: string; paper: QuestionPaper }) => {
       if (data.assignmentId === assignmentId) {
         console.log(`[useSocket] job:done for ${assignmentId}`);
-        setPaper(data.paper);
-        setJobStatus('completed');
+        storeRef.current.setPaper(data.paper);
+        storeRef.current.setJobStatus('completed');
       }
     });
 
@@ -62,8 +70,8 @@ export function useSocket(assignmentId: string | null) {
     socket.on('job:failed', (data: { assignmentId: string; error: string }) => {
       if (data.assignmentId === assignmentId) {
         console.log(`[useSocket] job:failed for ${assignmentId}:`, data.error);
-        setError(data.error);
-        setJobStatus('failed');
+        storeRef.current.setError(data.error);
+        storeRef.current.setJobStatus('failed');
       }
     });
 
@@ -73,7 +81,7 @@ export function useSocket(assignmentId: string | null) {
       socketRef.current = null;
       setIsConnected(false);
     };
-  }, [assignmentId, setJobStatus, setPaper, setError]);
+  }, [assignmentId]); // Only depend on assignmentId - stable reference
 
   return { isConnected };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -13,7 +13,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-import { useVedaStore, Assignment } from '../../../lib/store';
+import { useAddAssignment } from '../../../lib/store';
+import { Assignment } from '../../../lib/store';
 import { useAssignmentStore } from '../../../lib/assignmentStore';
 import { createAssignment } from '../../../lib/api';
 import UploadDropzone from '../../../components/UploadDropzone';
@@ -21,16 +22,9 @@ import QuestionTypeTable, { QuestionTypeRow } from '../../../components/Question
 
 export default function CreateAssignment() {
   const router = useRouter();
-  const addAssignment = useVedaStore((state) => state.addAssignment);
-  const {
-    setAssignmentConfig,
-    setAssignmentId,
-    setJobId,
-    setJobStatus,
-    setLoading,
-    setError: setStoreError,
-    isLoading,
-  } = useAssignmentStore();
+  const addAssignment = useAddAssignment();
+  const storeRef = useAssignmentStore.getState();
+  const isLoading = useAssignmentStore((state) => state.isLoading);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -57,7 +51,7 @@ export default function CreateAssignment() {
   const [validationError, setValidationError] = useState('');
 
   // Voice Input Simulation
-  const toggleListening = () => {
+  const toggleListening = useCallback(() => {
     if (!isListening) {
       setIsListening(true);
       setValidationError('');
@@ -71,7 +65,7 @@ export default function CreateAssignment() {
     } else {
       setIsListening(false);
     }
-  };
+  }, [isListening]);
 
   const handleValidation = (): boolean => {
     if (!title.trim()) {
@@ -94,7 +88,7 @@ export default function CreateAssignment() {
     return true;
   };
 
-  const handleNext = async () => {
+  const handleNext = useCallback(async () => {
     if (!handleValidation()) return;
 
     const totalMarks = questionTypes.reduce((acc, r) => acc + (r.count * r.marks), 0);
@@ -113,16 +107,16 @@ export default function CreateAssignment() {
     };
 
     try {
-      setLoading(true);
-      setStoreError(null);
+      storeRef.setLoading(true);
+      storeRef.setError(null);
 
       const data = await createAssignment(config);
 
       // Persist config and IDs in the assignment store
-      setAssignmentConfig(config);
-      setAssignmentId(data.assignmentId);
-      setJobId(data.jobId);
-      setJobStatus('pending');
+      storeRef.setAssignmentConfig(config);
+      storeRef.setAssignmentId(data.assignmentId);
+      storeRef.setJobId(data.jobId);
+      storeRef.setJobStatus('pending');
 
       // Date formatting (convert YYYY-MM-DD to DD-MM-YYYY)
       const formattedDueDate = dueDate.split('-').reverse().join('-');
@@ -154,11 +148,24 @@ export default function CreateAssignment() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong connecting to backend';
       setValidationError(msg);
-      setStoreError(msg);
+      storeRef.setError(msg);
     } finally {
-      setLoading(false);
+      storeRef.setLoading(false);
     }
-  };
+  }, [
+    handleValidation, 
+    questionTypes, 
+    subject, 
+    title, 
+    dueDate, 
+    additionalInfo, 
+    classLevel, 
+    schoolName, 
+    timeAllowed, 
+    fileUploaded, 
+    addAssignment, 
+    router
+  ]);
 
   return (
     <div className="max-w-190 mx-auto space-y-6 pt-2">

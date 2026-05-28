@@ -1,30 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, Filter, Plus, X } from 'lucide-react';
-import { useVedaStore } from '../lib/store';
+import { Search, Filter, Plus, X, FileText } from 'lucide-react';
+import { 
+  useAssignments, 
+  useSearchQuery, 
+  useSelectedFilter, 
+  useSetSearchQuery, 
+  useSetSelectedFilter,
+  useHydration 
+} from '../lib/store';
 import AssignmentCard from '../components/AssignmentCard';
 
 export default function Dashboard() {
-  const assignments = useVedaStore((state) => state.assignments);
-  const searchQuery = useVedaStore((state) => state.searchQuery);
-  const setSearchQuery = useVedaStore((state) => state.setSearchQuery);
-  const selectedFilter = useVedaStore((state) => state.selectedFilter);
-  const setSelectedFilter = useVedaStore((state) => state.setSelectedFilter);
+  // Optimized selectors - only re-render when specific data changes
+  const assignments = useAssignments();
+  const searchQuery = useSearchQuery();
+  const setSearchQuery = useSetSearchQuery();
+  const selectedFilter = useSelectedFilter();
+  const setSelectedFilter = useSetSelectedFilter();
+  const hasHydrated = useHydration();
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
-  // Get list of unique subjects for filter options
-  const subjects = ['All', ...Array.from(new Set(assignments.map((a) => a.subject)))];
+  // Memoized subjects list - only recalculate when assignments change
+  const subjects = useMemo(() => 
+    ['All', ...Array.from(new Set(assignments.map((a) => a.subject)))],
+    [assignments]
+  );
 
-  // Filter assignments based on search and selected subject filter
-  const filteredAssignments = assignments.filter((assign) => {
-    const matchesSearch = assign.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          assign.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubject = selectedFilter === 'All' || assign.subject === selectedFilter;
-    return matchesSearch && matchesSubject;
-  });
+  // Memoized filtered assignments - only recalculate when dependencies change
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((assign) => {
+      const matchesSearch = assign.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            assign.subject.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSubject = selectedFilter === 'All' || assign.subject === selectedFilter;
+      return matchesSearch && matchesSubject;
+    });
+  }, [assignments, searchQuery, selectedFilter]);
+
+  // Memoized callbacks to prevent re-renders
+  const handleFilterSelect = useCallback((subj: string) => {
+    setSelectedFilter(subj);
+    setShowFilterDropdown(false);
+  }, [setSelectedFilter]);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, [setSearchQuery]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchQuery('');
+  }, [setSearchQuery]);
 
   return (
     <div className="space-y-6">
@@ -73,10 +101,7 @@ export default function Dashboard() {
               {subjects.map((subj) => (
                 <button
                   key={subj}
-                  onClick={() => {
-                    setSelectedFilter(subj);
-                    setShowFilterDropdown(false);
-                  }}
+                  onClick={() => handleFilterSelect(subj)}
                   className={`
                     w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors
                     ${selectedFilter === subj 
@@ -98,7 +123,7 @@ export default function Dashboard() {
             type="text"
             placeholder="Search Assignment"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             className="
               w-full pl-4 pr-10 py-2.5 rounded-full bg-white border border-[#E9ECEF]
               text-sm font-semibold text-brand-dark placeholder-gray-400
@@ -111,7 +136,7 @@ export default function Dashboard() {
           </div>
           {searchQuery && (
             <button 
-              onClick={() => setSearchQuery('')}
+              onClick={handleSearchClear}
               className="absolute inset-y-0 right-10 flex items-center pr-1 text-gray-400 hover:text-gray-600 cursor-pointer"
             >
               <X className="h-4 w-4" />
@@ -121,7 +146,13 @@ export default function Dashboard() {
       </div>
 
       {/* Assignments Grid or Empty State */}
-      {filteredAssignments.length > 0 ? (
+      {!hasHydrated ? (
+        <div className="flex flex-col items-center justify-center w-full min-h-112.5 p-8 rounded-3xl bg-white border border-[#EAEDF2] text-center shadow-sm">
+          <div className="h-12 w-12 rounded-full border-4 border-[#FFF3EF] border-t-brand-orange animate-spin" />
+          <h2 className="mt-6 text-xl font-extrabold text-brand-dark tracking-tight">Loading assignments...</h2>
+          <p className="mt-2 text-xs font-semibold text-gray-500">Restoring your saved assignments and filters.</p>
+        </div>
+      ) : filteredAssignments.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pt-2">
           {filteredAssignments.map((assign) => (
             <AssignmentCard key={assign.id} assignment={assign} />
@@ -167,7 +198,7 @@ export default function Dashboard() {
       )}
 
       {/* Floating Action Button at Bottom Middle (only if assignments exist) */}
-      {assignments.length > 0 && (
+      {hasHydrated && assignments.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 no-print">
           <Link href="/assignments/create">
             <button className="

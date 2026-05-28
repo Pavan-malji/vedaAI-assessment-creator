@@ -1,9 +1,8 @@
 'use client';
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMemo, useState } from 'react';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import {
   Download,
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react';
 
 import { useVedaStore } from '../../../../lib/store';
-import { useAssignmentStore } from '../../../../lib/assignmentStore';
+import { useAssignmentStore, useAssignmentStoreHydrated } from '../../../../lib/assignmentStore';
 import { useSocket } from '../../../../hooks/useSocket';
 import { getResult, createAssignment } from '../../../../lib/api';
 import QuestionPaperDoc from '../../../../components/QuestionPaperDoc';
@@ -39,22 +38,21 @@ export default function PreviewAssignment() {
 
   const id = params?.id as string;
   const triggerWs = searchParams?.get('trigger') === 'true';
-  const [isClientReady, setIsClientReady] = useState(false);
+
+  // Wait for both stores to rehydrate from localStorage before rendering
+  const storeReady = useAssignmentStoreHydrated();
 
   // Legacy store — for assignment metadata (title, subject, etc.)
   const { assignments } = useVedaStore();
   const assignment = assignments.find((a) => a.id === id);
 
   // New assignment store — tracks AI generation state
-  const {
-    jobStatus,
-    paper,
-    error,
-    setJobStatus,
-    setPaper,
-    setAssignmentId,
-    setError,
-  } = useAssignmentStore();
+  const storeRef = useRef(useAssignmentStore.getState());
+
+  // paper is keyed by assignment id — survives navigation between assignments
+  const jobStatus = useAssignmentStore((s) => s.jobStatus);
+  const paper = useAssignmentStore((s) => s.papers[id] ?? null);
+  const error = useAssignmentStore((s) => s.error);
 
   // WebSocket hook — listens for job events and updates the store
   const { isConnected } = useSocket(triggerWs ? id : null);
@@ -65,19 +63,15 @@ export default function PreviewAssignment() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const paperRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    setIsClientReady(true);
-  }, []);
-
   // Initialise store with this assignment's ID on mount
   useEffect(() => {
     if (id) {
-      setAssignmentId(id);
+      storeRef.current.setAssignmentId(id);
       if (triggerWs && jobStatus === 'idle') {
-        setJobStatus('pending');
+        storeRef.current.setJobStatus('pending');
       }
     }
-  }, [id, triggerWs, setAssignmentId, setJobStatus, jobStatus]);
+  }, [id, triggerWs, jobStatus]);
 
   // Add log messages as status changes
   useEffect(() => {
@@ -97,46 +91,64 @@ export default function PreviewAssignment() {
   }, [jobStatus, error]);
 
   // Polling fallback / periodic sync
-  const pollResult = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await getResult(id);
-      if (data.paper) {
-        setPaper(data.paper);
-        setJobStatus('completed');
-      } else if (data.status === 'failed') {
-        setJobStatus('failed');
-        setError('Generation failed on the server.');
-      } else if (data.status) {
-        setJobStatus(data.status as any);
-      }
-    } catch {
-      // Silently ignore polling errors
-    }
-  }, [id, setPaper, setJobStatus, setError]);
+  // jobStatus is read via ref to avoid re-running the effect on every status change
+  const jobStatusRef = useRef(jobStatus);
+  useEffect(() => {
+    jobStatusRef.current = jobStatus;
+  }, [jobStatus]);
 
   useEffect(() => {
-    // Initial fetch for direct visits
+    if (!id) return;
+
+    const pollResult = async () => {
+      // Stop polling if already done
+      if (jobStatusRef.current === 'completed' || jobStatusRef.current === 'failed') {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        return;
+      }
+
+      try {
+        const data = await getResult(id);
+        const store = useAssignmentStore.getState();
+
+        if (data.paper) {
+          store.setPaper(data.paper);
+          store.setJobStatus('completed');
+        } else if (data.status === 'failed') {
+          store.setJobStatus('failed');
+          store.setError('Generation failed on the server.');
+        } else if (data.status) {
+          store.setJobStatus(data.status as any);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    };
+
+    // Initial fetch for direct visits (e.g. navigating back to a completed assignment)
     pollResult();
-    
-    // Start polling as a fallback or to monitor active generation
-    if (jobStatus !== 'completed' && jobStatus !== 'failed') {
-      pollingRef.current = setInterval(pollResult, 3000);
-    }
+
+    // Start interval — it self-terminates via the ref check above
+    pollingRef.current = setInterval(pollResult, 3000);
 
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
     };
-  }, [pollResult, jobStatus]);
-
-  // Removed redundant clear since we depend on jobStatus in the effect above
+  }, [id]); // Only depends on id — never re-runs due to status changes
 
   // Regenerate — create a new assignment with the same config and redirect
   const handleRegenerate = async () => {
     if (!assignment) return;
-    setJobStatus('pending');
+    const store = useAssignmentStore.getState();
+    store.setJobStatus('pending');
     setWsLogs(['Re-connecting to AI Server...']);
-    setError(null);
+    store.setError(null);
 
     try {
       const data = await createAssignment({
@@ -153,47 +165,210 @@ export default function PreviewAssignment() {
       window.location.href = `/assignments/${data.assignmentId}/preview?trigger=true`;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Regeneration failed';
-      setJobStatus('failed');
-      setError(msg);
+      store.setJobStatus('failed');
+      store.setError(msg);
     }
   };
 
   const handlePrint = async () => {
-    const paperElement = paperRef.current;
-    if (!paperElement || isExportingPdf) return;
+    if (isExportingPdf) return;
+
+    const exportAssignment = assignment;
+    if (!exportAssignment) return;
 
     setIsExportingPdf(true);
 
     try {
-      const canvas = await html2canvas(paperElement, {
-        backgroundColor: '#FFFFFF',
-        scale: 2,
-        useCORS: true,
-        scrollY: -window.scrollY,
-        windowWidth: paperElement.scrollWidth,
-        windowHeight: paperElement.scrollHeight,
-      });
-
-      const imageData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pageWidth - margin * 2;
-      const contentHeight = pageHeight - margin * 2;
-      const imageHeight = (canvas.height * contentWidth) / canvas.width;
+      const margin = 14;
+      const usableWidth = pageWidth - margin * 2;
+      const lineHeight = 6;
+      const smallLineHeight = 5;
 
-      let heightRemaining = imageHeight;
-      let offset = margin;
+      const ensureSpace = (neededHeight: number) => {
+        if (cursorY + neededHeight > pageHeight - margin) {
+          pdf.addPage();
+          cursorY = margin;
+        }
+      };
 
-      pdf.addImage(imageData, 'PNG', margin, offset, contentWidth, imageHeight);
-      heightRemaining -= contentHeight;
+      const addWrappedText = (text: string, fontSize: number, opts?: { bold?: boolean; align?: 'left' | 'center' | 'right'; color?: [number, number, number]; gapAfter?: number }) => {
+        pdf.setFont('helvetica', opts?.bold ? 'bold' : 'normal');
+        pdf.setFontSize(fontSize);
+        if (opts?.color) pdf.setTextColor(opts.color[0], opts.color[1], opts.color[2]);
+        else pdf.setTextColor(20, 20, 20);
+        const lines = pdf.splitTextToSize(text, usableWidth);
+        const height = lines.length * (fontSize * 0.45 + 1.5);
+        ensureSpace(height + (opts?.gapAfter ?? 0));
+        pdf.text(lines, pageWidth / 2, cursorY, { align: opts?.align ?? 'center' });
+        cursorY += height + (opts?.gapAfter ?? 0);
+      };
 
-      while (heightRemaining > 0) {
-        pdf.addPage();
-        offset = margin - (imageHeight - heightRemaining);
-        pdf.addImage(imageData, 'PNG', margin, offset, contentWidth, imageHeight);
-        heightRemaining -= contentHeight;
+      let cursorY = margin;
+
+      const sections = displayPaper?.sections?.length
+        ? displayPaper.sections
+        : [{
+            title: 'Section A',
+            instruction: 'Attempt all questions. Each question carries marks as indicated.',
+            questions: legacyQuestions.map((question) => ({
+              id: question.id,
+              text: question.text,
+              difficulty: question.difficulty === 'Easy' ? 'easy' : question.difficulty === 'Challenging' ? 'hard' : 'medium',
+              marks: question.marks,
+            })),
+          }];
+
+      // Header block
+      addWrappedText(exportAssignment.schoolName || 'Delhi Public School, Sector-4, Bokaro', 16, { bold: true, gapAfter: 2 });
+      addWrappedText(`Subject: ${exportAssignment.subject}`, 12, { bold: true, gapAfter: 1 });
+      addWrappedText(`Class: ${exportAssignment.class}`, 11, { bold: true, color: [90, 90, 90], gapAfter: 4 });
+
+      pdf.setDrawColor(210, 214, 220);
+      pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+      cursorY += 6;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(55, 65, 81);
+      pdf.text(`Time Allowed: ${exportAssignment.timeAllowed || '45 minutes'}`, margin, cursorY);
+      pdf.text(`Maximum Marks: ${exportAssignment.maxMarks}`, pageWidth - margin, cursorY, { align: 'right' });
+      cursorY += 8;
+
+      pdf.setFillColor(248, 250, 252);
+      pdf.setDrawColor(226, 232, 240);
+      ensureSpace(14);
+      pdf.roundedRect(margin, cursorY, usableWidth, 10, 2, 2, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(75, 85, 99);
+      pdf.text('All questions are compulsory unless stated otherwise.', pageWidth / 2, cursorY + 6.5, { align: 'center' });
+      cursorY += 16;
+
+      // Student fields
+      ensureSpace(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(75, 85, 99);
+      const fieldY = cursorY;
+      const third = usableWidth / 3;
+      const fieldGap = 6;
+      pdf.text('Name:', margin, fieldY);
+      pdf.line(margin + 16, fieldY + 0.5, margin + third - fieldGap, fieldY + 0.5);
+      pdf.text('Roll Number:', margin + third, fieldY);
+      pdf.line(margin + third + 24, fieldY + 0.5, margin + (third * 2) - fieldGap, fieldY + 0.5);
+      pdf.text(`Class: ${exportAssignment.class} Section:`, margin + third * 2, fieldY);
+      pdf.line(margin + third * 2 + 42, fieldY + 0.5, pageWidth - margin, fieldY + 0.5);
+      cursorY += 14;
+
+      cursorY += 2;
+
+      const sectionInstruction = sections[0]?.instruction || 'Attempt all questions. Each question carries marks as indicated.';
+
+      for (const section of sections) {
+        ensureSpace(20);
+        pdf.setFillColor(255, 248, 245);
+        pdf.setDrawColor(255, 228, 213);
+        pdf.roundedRect(margin, cursorY, usableWidth, 12, 2, 2, 'FD');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(section.title.toUpperCase(), pageWidth / 2, cursorY + 8, { align: 'center' });
+        cursorY += 16;
+
+        if (section.instruction) {
+          pdf.setFont('helvetica', 'italic');
+          pdf.setFontSize(9);
+          pdf.setTextColor(107, 114, 128);
+          const instructionLines = pdf.splitTextToSize(section.instruction, usableWidth - 4);
+          ensureSpace(instructionLines.length * smallLineHeight + 2);
+          pdf.text(instructionLines, margin + 2, cursorY);
+          cursorY += instructionLines.length * smallLineHeight + 3;
+        } else if (sectionInstruction) {
+          pdf.setFont('helvetica', 'italic');
+          pdf.setFontSize(9);
+          pdf.setTextColor(107, 114, 128);
+          const instructionLines = pdf.splitTextToSize(sectionInstruction, usableWidth - 4);
+          ensureSpace(instructionLines.length * smallLineHeight + 2);
+          pdf.text(instructionLines, margin + 2, cursorY);
+          cursorY += instructionLines.length * smallLineHeight + 3;
+        }
+
+        for (let index = 0; index < section.questions.length; index++) {
+          const question = section.questions[index];
+          const questionNumber = `${index + 1}.`;
+          const questionTextLines = pdf.splitTextToSize(question.text, usableWidth - 28);
+          const questionHeight = Math.max(lineHeight, questionTextLines.length * smallLineHeight) + 2;
+          ensureSpace(questionHeight + 6);
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(10);
+          pdf.setTextColor(17, 24, 39);
+          pdf.text(questionNumber, margin, cursorY);
+
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(10);
+          pdf.text(questionTextLines, margin + 8, cursorY);
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(`[${question.marks} Marks]`, pageWidth - margin, cursorY, { align: 'right' });
+
+          cursorY += questionTextLines.length * smallLineHeight + 7;
+        }
+
+        cursorY += 4;
+      }
+
+      ensureSpace(16);
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+      cursorY += 6;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text('End of Question Paper', pageWidth / 2, cursorY, { align: 'center' });
+      cursorY += 8;
+
+      if (showAnswerKey && displayPaper?.sections?.length) {
+        ensureSpace(18);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+        cursorY += 8;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(17, 24, 39);
+        pdf.text('Answer Key', margin, cursorY);
+        cursorY += 8;
+
+        for (const section of displayPaper.sections) {
+          ensureSpace(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(10);
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(section.title, margin, cursorY);
+          cursorY += 6;
+
+          for (const question of section.questions) {
+            const answerText = `Answer: ${question.text}`;
+            const answerLines = pdf.splitTextToSize(answerText, usableWidth - 6);
+            const answerHeight = answerLines.length * smallLineHeight + 4;
+            ensureSpace(answerHeight + 5);
+
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(9);
+            pdf.setTextColor(75, 85, 99);
+            pdf.text('•', margin, cursorY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(answerLines, margin + 5, cursorY);
+            cursorY += answerHeight;
+          }
+
+          cursorY += 4;
+        }
       }
 
       pdf.save(`assignment-${id}-question-paper.pdf`);
@@ -205,6 +380,16 @@ export default function PreviewAssignment() {
   // Show the loading overlay while generation is in progress
   const activeStatuses: string[] = ['idle', 'pending', 'processing'];
   const showOverlay = triggerWs && activeStatuses.includes(jobStatus);
+
+  // Show skeleton while stores are rehydrating from localStorage
+  if (!storeReady) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full min-h-[60vh] gap-4">
+        <div className="h-10 w-10 rounded-full border-4 border-[#FFF3EF] border-t-brand-orange animate-spin" />
+        <p className="text-xs font-semibold text-gray-400">Loading assignment...</p>
+      </div>
+    );
+  }
 
   if (!assignment) {
     return (
