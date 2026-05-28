@@ -82,11 +82,17 @@ GEMINI_API_KEY=your_gemini_api_key_here
 FRONTEND_URL=http://localhost:3000
 ```
 
+In deployment, replace `MONGODB_URI` with your MongoDB Atlas URI and set `FRONTEND_URL` to the deployed frontend origin.
+
+If frontend and backend are on different domains, keep `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` pointed at the backend origin and allow credentials in CORS.
+
 **Frontend** — create `frontend/.env.local`:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000
 NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ```
+
+Use your deployed backend URL for these variables in production. The values above are only for local development.
 
 ### 4. Start MongoDB and Redis via Docker
 

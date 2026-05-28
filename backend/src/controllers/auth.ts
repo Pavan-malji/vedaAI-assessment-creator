@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { registerUser, loginUser, generateAccessToken, generateRefreshToken } from '../services/auth';
 import { User } from '../models/User';
 
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+};
+
 const registerSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
@@ -19,8 +26,8 @@ export const register = async (req: Request, res: Response) => {
     const parsed = registerSchema.parse(req.body);
     const { user, accessToken, refreshToken } = await registerUser(parsed);
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, sameSite: 'lax' });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'lax' });
+    res.cookie('accessToken', accessToken, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
 
     const safeUser = await User.findById(user._id).select('-passwordHash');
     res.status(201).json({ user: safeUser });
@@ -35,8 +42,8 @@ export const login = async (req: Request, res: Response) => {
     const parsed = loginSchema.parse(req.body);
     const { user, accessToken, refreshToken } = await loginUser(parsed as any);
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, sameSite: 'lax' });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'lax' });
+    res.cookie('accessToken', accessToken, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
 
     const safeUser = await User.findById(user._id).select('-passwordHash');
     res.status(200).json({ user: safeUser });

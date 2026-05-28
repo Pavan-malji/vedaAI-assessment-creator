@@ -26,7 +26,11 @@ export function useSocket(assignmentId: string | null) {
   useEffect(() => {
     if (!assignmentId) return;
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+
+    if (!socketUrl) {
+      throw new Error('NEXT_PUBLIC_SOCKET_URL must be set to the deployed socket URL.');
+    }
 
     console.log(`[useSocket] Connecting to ${socketUrl} for assignment ${assignmentId}`);
 

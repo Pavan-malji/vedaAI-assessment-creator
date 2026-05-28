@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { AssignmentConfig, CreateAssignmentResponse, GetResultResponse } from './types';
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+if (!apiBaseUrl) {
+  throw new Error('NEXT_PUBLIC_API_URL must be set to the deployed backend URL.');
+}
+
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
