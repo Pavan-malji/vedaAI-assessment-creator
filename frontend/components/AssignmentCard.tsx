@@ -30,12 +30,14 @@ function AssignmentCard({ assignment }: AssignmentCardProps) {
   }, [showMenu]);
 
   const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     deleteAssignment(assignment.id);
     setShowMenu(false);
   };
 
   const handleView = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     router.push(`/assignments/${assignment.id}/preview`);
   };
