@@ -5,6 +5,7 @@ export interface IAssignment extends AssignmentConfig, Document {
   status: JobStatus;
   jobId: string;
   createdAt: Date;
+  userId: mongoose.Types.ObjectId;
 }
 
 const AssignmentSchema = new Schema<IAssignment>({
@@ -16,6 +17,7 @@ const AssignmentSchema = new Schema<IAssignment>({
   marksPerQuestion: { type: Number, required: true },
   totalMarks: { type: Number, required: true },
   additionalInstructions: { type: String, default: '' },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   status: { type: String, enum: ['pending', 'processing', 'completed', 'failed'], default: 'pending' },
   jobId: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now },

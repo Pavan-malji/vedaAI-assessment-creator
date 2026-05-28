@@ -35,6 +35,7 @@ export function useSocket(assignmentId: string | null) {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      withCredentials: true,
     });
 
     socketRef.current = socket;

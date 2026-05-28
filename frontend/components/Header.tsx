@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, memo } from 'react';
+import { useAuthStore } from '@/lib/authStore';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ChevronDown, ArrowLeft, Grid, LogOut, Settings, UserCircle2 } from 'lucide-react';
 import Link from 'next/link';
@@ -10,6 +11,8 @@ function Header() {
   const router = useRouter();
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const user = useAuthStore(s => s.user);
+  const logout = useAuthStore(s => s.logout);
 
   useEffect(() => {
     if (!isProfileMenuOpen) return;
@@ -116,9 +119,9 @@ function Header() {
             aria-expanded={isProfileMenuOpen}
           >
             <div className="w-8 h-8 rounded-full bg-linear-to-tr from-brand-orange to-[#FF8C66] text-white font-bold flex items-center justify-center text-sm border border-brand-orange/20 overflow-hidden">
-              JD
+              {user ? (user.name.split(' ').map(n => n[0]).slice(0,2).join('')) : 'JD'}
             </div>
-            <span className="text-xs font-bold text-gray-800">John Doe</span>
+            <span className="text-xs font-bold text-gray-800">{user ? user.name : 'John Doe'}</span>
             <ChevronDown className={`h-3.5 w-3.5 text-gray-500 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
@@ -130,8 +133,8 @@ function Header() {
                     JD
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-brand-dark truncate">John Doe</div>
-                    <div className="text-xs font-medium text-gray-500 truncate">john.doe@vedaai.school</div>
+                    <div className="text-sm font-extrabold text-brand-dark truncate">{user ? user.name : 'John Doe'}</div>
+                    <div className="text-xs font-medium text-gray-500 truncate">{user ? user.email : 'john.doe@vedaai.school'}</div>
                   </div>
                 </div>
               </div>
@@ -157,9 +160,10 @@ function Header() {
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setIsProfileMenuOpen(false);
-                    router.push('/settings');
+                    await logout();
+                    router.push('/login');
                   }}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-brand-dark transition-colors"
                 >

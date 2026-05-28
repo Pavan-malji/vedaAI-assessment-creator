@@ -6,7 +6,34 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
+
+// Simple auth helpers
+export const apiRegister = async (name: string, email: string, password: string) => {
+  const resp = await apiClient.post('/api/auth/register', { name, email, password });
+  return resp.data;
+};
+
+export const apiLogin = async (email: string, password: string) => {
+  const resp = await apiClient.post('/api/auth/login', { email, password });
+  return resp.data;
+};
+
+export const apiLogout = async () => {
+  const resp = await apiClient.post('/api/auth/logout');
+  return resp.data;
+};
+
+export const apiGetMe = async () => {
+  const resp = await apiClient.get('/api/auth/me');
+  return resp.data;
+};
+
+export const apiRefresh = async () => {
+  const resp = await apiClient.post('/api/auth/refresh');
+  return resp.data;
+};
 
 /**
  * Create a new assignment and kick off AI generation

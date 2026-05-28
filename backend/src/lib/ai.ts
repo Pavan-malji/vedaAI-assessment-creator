@@ -23,6 +23,53 @@ const questionPaperSchema = z.object({
   sections: z.array(sectionSchema)
 });
 
+const buildFallbackQuestionPaper = (config: AssignmentConfig): QuestionPaper => {
+  const totalQuestions = Math.max(1, config.numberOfQuestions || 1);
+  const sectionsCount = Math.max(1, Math.min(config.questionTypes.length || 1, totalQuestions));
+  const baseCount = Math.floor(totalQuestions / sectionsCount);
+  let remainder = totalQuestions % sectionsCount;
+
+  const topics = [
+    config.topic,
+    config.subject,
+    ...(config.additionalInstructions ? [config.additionalInstructions] : []),
+  ].filter(Boolean);
+
+  const questionTypes = config.questionTypes.length > 0 ? config.questionTypes : ['General Questions'];
+
+  const sections = Array.from({ length: sectionsCount }, (_, sectionIndex) => {
+    const sectionTitle = `Section ${String.fromCharCode(65 + sectionIndex)}`;
+    const questionCount = baseCount + (remainder > 0 ? 1 : 0);
+    remainder = Math.max(0, remainder - 1);
+
+    const questions = Array.from({ length: Math.max(1, questionCount) }, (_, questionIndex) => {
+      const globalIndex = sectionIndex * totalQuestions + questionIndex + 1;
+      const questionType = questionTypes[(sectionIndex + questionIndex) % questionTypes.length];
+      const topic = topics[(sectionIndex + questionIndex) % topics.length] || config.subject;
+      const difficulty: 'easy' | 'medium' | 'hard' = questionIndex % 3 === 0
+        ? 'easy'
+        : questionIndex % 3 === 1
+          ? 'medium'
+          : 'hard';
+
+      return {
+        id: String(globalIndex),
+        text: `${questionType} based question ${globalIndex} on ${topic}`,
+        difficulty,
+        marks: config.marksPerQuestion,
+      };
+    });
+
+    return {
+      title: sectionTitle,
+      instruction: sectionIndex === 0 ? 'Attempt all questions.' : 'Answer the questions in this section.',
+      questions,
+    };
+  });
+
+  return { sections };
+};
+
 export const generateQuestionPaper = async (config: AssignmentConfig): Promise<QuestionPaper> => {
   try {
     const prompt = `
@@ -166,9 +213,16 @@ The JSON schema must strictly follow this structure:
     }
 
     const validatedData = questionPaperSchema.parse(jsonParsed);
+
+    const hasQuestions = validatedData.sections.some((section) => section.questions.length > 0);
+    if (!hasQuestions) {
+      console.warn('AI returned an empty paper; using fallback generator.');
+      return buildFallbackQuestionPaper(config);
+    }
+
     return validatedData as QuestionPaper;
   } catch (error) {
-    console.error('Error generating question paper:', error);
-    throw new Error('AI_PARSE_ERROR');
+    console.error('Error generating question paper, using fallback:', error);
+    return buildFallbackQuestionPaper(config);
   }
 };

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAssignmentsCount } from '../lib/store';
 import { useState, memo } from 'react';
+import { useAuthStore } from '@/lib/authStore';
 
 function Sidebar() {
   const pathname = usePathname();
@@ -149,9 +150,9 @@ function Sidebar() {
 
           {/* Organization / School Profile Card */}
           <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-brand-light-gray">
-            <div className="relative flex-shrink-0 w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center overflow-hidden">
-              <span className="font-extrabold text-brand-orange text-base font-serif">DPS</span>
-            </div>
+                    <div className="relative flex-shrink-0 w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center overflow-hidden">
+                      <span className="font-extrabold text-brand-orange text-base font-serif">{useAuthStore.getState().user ? useAuthStore.getState().user!.name.split(' ').map(n => n[0]).slice(0,3).join('') : 'DPS'}</span>
+                    </div>
             <div className="min-w-0 flex-1">
               <h4 className="text-xs font-bold text-gray-900 truncate leading-tight">Delhi Public School</h4>
               <p className="text-[10px] font-medium text-gray-500 truncate mt-0.5">Bokaro Steel City</p>

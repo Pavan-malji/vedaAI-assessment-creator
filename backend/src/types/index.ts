@@ -27,3 +27,19 @@ export interface QuestionPaper {
 }
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface AuthPayload {
+  userId: string;
+  email: string;
+}
+
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}

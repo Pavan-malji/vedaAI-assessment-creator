@@ -6,8 +6,8 @@ import { getIO } from '../socket';
 import { generateQuestionPaper } from '../lib/ai';
 
 export const aiWorker = new Worker('assignment-generation', async (job: Job) => {
-  const { assignmentId } = job.data;
-  console.log(`Started processing job ${job.id} for assignment ${assignmentId}`);
+  const { assignmentId, userId } = job.data as { assignmentId: string; userId?: string };
+  console.log(`Started processing job ${job.id} for assignment ${assignmentId} user ${userId}`);
 
   try {
     const assignment = await Assignment.findById(assignmentId);
@@ -20,10 +20,11 @@ export const aiWorker = new Worker('assignment-generation', async (job: Job) => 
     await assignment.save();
     console.log(`Assignment ${assignmentId} status updated to 'processing'`);
 
-    // Emit progress event
+    // Emit progress event to user room if available
     const ioInstance = getIO();
     if (ioInstance) {
-      ioInstance.emit('job:progress', { assignmentId, status: 'processing', progress: 50 });
+      if (userId) ioInstance.to(`user:${userId}`).emit('job:progress', { assignmentId, status: 'processing', progress: 50 });
+      else ioInstance.emit('job:progress', { assignmentId, status: 'processing', progress: 50 });
       console.log(`Emitted job:progress for assignment ${assignmentId}`);
     }
 
@@ -34,12 +35,14 @@ export const aiWorker = new Worker('assignment-generation', async (job: Job) => 
     // Save result
     const result = new Result({
       assignmentId: assignment._id,
-      paper
+      paper,
+      userId: userId ? userId : assignment.userId
     });
     await result.save();
 
-    // Cache result
-    await setCache(`result:${assignmentId}`, paper, 3600);
+    // Cache result scoped by user
+    const cacheKey = userId ? `result:${userId}:${assignmentId}` : `result:${assignment.userId}:${assignmentId}`;
+    await setCache(cacheKey, paper, 3600);
 
     // Update assignment status to 'completed'
     assignment.status = 'completed';
@@ -48,7 +51,8 @@ export const aiWorker = new Worker('assignment-generation', async (job: Job) => 
     // Emit socket event
     const io = getIO();
     if (io) {
-      io.emit('job:done', { assignmentId, paper });
+      if (userId) io.to(`user:${userId}`).emit('job:done', { assignmentId, paper });
+      else io.emit('job:done', { assignmentId, paper });
     }
 
     console.log(`Successfully completed job ${job.id} for assignment ${assignmentId}`);
@@ -67,7 +71,8 @@ export const aiWorker = new Worker('assignment-generation', async (job: Job) => 
 
     const io = getIO();
     if (io) {
-      io.emit('job:failed', { assignmentId, error: error instanceof Error ? error.message : 'Unknown error' });
+      if (job.data?.userId) io.to(`user:${job.data.userId}`).emit('job:failed', { assignmentId, error: error instanceof Error ? error.message : 'Unknown error' });
+      else io.emit('job:failed', { assignmentId, error: error instanceof Error ? error.message : 'Unknown error' });
     }
     
     throw error;

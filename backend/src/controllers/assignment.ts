@@ -16,7 +16,7 @@ const createAssignmentSchema = z.object({
   additionalInstructions: z.string().optional().default('')
 });
 
-export const createAssignment = async (req: Request, res: Response): Promise<void> => {
+export const createAssignment = async (req: Request, res: Response) => {
   try {
     const parseResult = createAssignmentSchema.safeParse(req.body);
 
@@ -30,15 +30,22 @@ export const createAssignment = async (req: Request, res: Response): Promise<voi
 
     const data = parseResult.data;
 
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
     const assignment = new Assignment({
       ...data,
-      status: 'pending'
+      status: 'pending',
+      userId
     });
 
     await assignment.save();
     console.log(`Assignment created: ${assignment._id}`);
 
-    const jobId = await addAssignmentJob(assignment._id.toString());
+    const jobId = await addAssignmentJob(assignment._id.toString(), userId);
 
     assignment.jobId = jobId ?? '';
     await assignment.save();
@@ -55,10 +62,13 @@ export const createAssignment = async (req: Request, res: Response): Promise<voi
   }
 };
 
-export const getAssignment = async (req: Request, res: Response): Promise<void> => {
+export const getAssignment = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const assignment = await Assignment.findById(id);
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    const assignment = await Assignment.findOne({ _id: id, userId });
 
     if (!assignment) {
       res.status(404).json({ error: 'Assignment not found' });
@@ -72,12 +82,15 @@ export const getAssignment = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-export const getResult = async (req: Request, res: Response): Promise<void> => {
+export const getResult = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Check Redis cache first
-    const cacheKey = `result:${id}`;
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    // Check Redis cache first (scoped by user)
+    const cacheKey = `result:${userId}:${id}`;
     const cachedResult = await getCache(cacheKey);
 
     if (cachedResult) {
@@ -87,7 +100,7 @@ export const getResult = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check MongoDB
-    const result = await Result.findOne({ assignmentId: id });
+    const result = await Result.findOne({ assignmentId: id, userId });
 
     if (result) {
       console.log(`DB hit for assignment ${id}`);
@@ -96,7 +109,7 @@ export const getResult = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Return current status if no result yet
-    const assignment = await Assignment.findById(id);
+    const assignment = await Assignment.findOne({ _id: id, userId });
     if (!assignment) {
       res.status(404).json({ error: 'Assignment not found' });
       return;

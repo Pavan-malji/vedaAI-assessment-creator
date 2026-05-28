@@ -4,20 +4,14 @@ services:
   frontend:
     build:
       context: ./frontend
-      target: dev
+      target: prod
     container_name: vedaai-frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules # SAFE FOR DEV: Anonymous volume avoids syncing node_modules to Windows host, massively reducing disk I/O
-      - /app/.next        # SAFE FOR DEV: Blocks massive Next.js cache disk writes to Windows
+    # Production mode: use built image contents (no host bind mounts) so container node_modules and .next are used
     environment:
-      - NODE_ENV=development
-      - NEXT_TELEMETRY_DISABLED=1
-      # Disable fallback polling on Windows if native FS events fail, reduces CPU load heavily:
-      - CHOKIDAR_USEPOLLING=false 
-      - WATCHPACK_POLLING=false
+      - NODE_ENV=production
+    command: ["npm","start"]
     depends_on:
       - backend
     # Reap zombie processes to keep memory lean
@@ -26,19 +20,20 @@ services:
   backend:
     build:
       context: ./backend
-      target: dev
+      target: prod
     container_name: vedaai-backend
     ports:
       - "5000:5000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules # SAFE FOR DEV: Prevents syncing heavy node_modules back to host
     environment:
       - NODE_ENV=development
       - PORT=5000
       - MONGODB_URI=mongodb://mongodb:27017/vedaai
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=vedaai-jwt-secret-dev
+      - JWT_REFRESH_SECRET=vedaai-refresh-secret-dev
+      - JWT_EXPIRES_IN=15m
+      - JWT_REFRESH_EXPIRES_IN=7d
     depends_on:
       - mongodb
       - redis

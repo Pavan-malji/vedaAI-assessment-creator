@@ -1,22 +1,26 @@
-# --- Base ---
+# Multi-stage Dockerfile
 FROM node:20-alpine AS base
 WORKDIR /app
 
-# --- Development Stage ---
-# Safe for dev only: Optimizes local caching and skips copying source code (relies on bind mounts)
-FROM base AS dev
+# Builder stage: install dev deps and build the TypeScript into /app/dist
+FROM base AS builder
 COPY package*.json ./
-# Use BuildKit cache to speed up repeated installs
-RUN --mount=type=cache,target=/root/.npm \
-    npm install
-# Source code will be mounted at runtime via docker-compose.yml
-CMD ["npm", "run", "dev"]
-
-# --- Production Stage ---
-# Safe for prod: Full isolated build
-FROM base AS prod
-COPY package*.json ./
-RUN npm ci --only=production
+# Install all dependencies (dev + prod) to run the build
+RUN --mount=type=cache,target=/root/.npm npm install
 COPY . .
+# Build the project (produces /app/dist)
 RUN npm run build
-CMD ["npm", "start"]
+
+# Production runtime stage: install only production deps and copy dist from builder
+FROM node:20-alpine AS prod
+WORKDIR /app
+COPY package*.json ./
+# Install only production dependencies
+RUN npm ci --only=production
+# Copy built artifacts from builder
+COPY --from=builder /app/dist ./dist
+# Copy non-code assets if any (public folders, etc.)
+# COPY --from=builder /app/public ./public
+
+EXPOSE 5000
+CMD ["node", "dist/index.js"]
