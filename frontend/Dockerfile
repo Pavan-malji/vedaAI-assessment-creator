@@ -8,8 +8,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 FROM base AS dev
 COPY package*.json ./
 # Cache npm install using Docker BuildKit
-RUN --mount=type=cache,target=/root/.npm \
-    npm install
+RUN npm install
+
 # We don't COPY . . here because docker-compose bind mounts the source code
 CMD ["npm", "run", "dev"]
 
@@ -25,4 +25,6 @@ FROM base AS prod
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+EXPOSE 3000
+ENV HOSTNAME=0.0.0.0
 CMD ["npm", "start"]
