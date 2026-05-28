@@ -21,6 +21,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "VedaAI - AI Assessment Creator",
   description: "Create and manage structured classroom assessments with ease using AI.",
+  icons: {
+    icon: "/vedaAI_logo.ico",
+    shortcut: "/vedaAI_logo.ico",
+    apple: "/vedaAI_logo.ico",
+  },
 };
 
 export default function RootLayout({

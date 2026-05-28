@@ -491,10 +491,13 @@ export default function PreviewAssignment() {
 
       {/* Page Breadcrumb Tracker */}
       <div className="no-print w-full flex items-center justify-between gap-4 p-1 bg-white border border-[#E9ECEF] rounded-2xl mb-6">
-        <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-gray-400 text-xs font-semibold">
+        <button
+          onClick={() => router.push('/')}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-gray-400 text-xs font-semibold hover:bg-brand-light-gray hover:text-brand-dark transition-all duration-200 cursor-pointer"
+        >
           <CheckIcon className="h-4 w-4 text-emerald-500" />
           <span>1. Assignment Details</span>
-        </div>
+        </button>
         <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-light-gray text-brand-dark text-xs font-extrabold tracking-wide">
           <Layers className="h-4 w-4 text-brand-orange" />
           <span>2. Generation Preview</span>
