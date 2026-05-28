@@ -7,6 +7,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const fetchCurrentUser = useAuthStore(state => state.fetchCurrentUser);
   const isLoading = useAuthStore(state => state.isLoading);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const isAuthChecked = useAuthStore(state => state.isAuthChecked);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,7 +35,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
   }, [isLoading, isAuthenticated, pathname, router]);
 
-  if (isLoading) {
+  const onAuthPages = pathname?.startsWith('/(auth)') || pathname?.startsWith('/login') || pathname?.startsWith('/register');
+
+  if (!isAuthChecked && !onAuthPages) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 

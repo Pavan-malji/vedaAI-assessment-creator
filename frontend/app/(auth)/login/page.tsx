@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/authStore';
 
@@ -9,15 +9,22 @@ export default function LoginPage() {
   const [show, setShow] = useState(false);
   const login = useAuthStore((s: any) => s.login);
   const isLoading = useAuthStore((s: any) => s.isLoading);
+  const error = useAuthStore((s: any) => s.error);
+  const clearError = useAuthStore((s: any) => s.clearError);
   const router = useRouter();
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
     try {
       await login(email, password);
       router.push('/');
-    } catch (e) {
-      // handled in store
+    } catch (err) {
+      console.error('Login failed:', err);
     }
   };
 
@@ -25,6 +32,12 @@ export default function LoginPage() {
     <div className="bg-white rounded-3xl border border-[#EAEDF2] shadow-sm p-8">
       <h1 className="text-2xl font-extrabold mb-2">Welcome Back</h1>
       <p className="text-xs font-semibold text-gray-500 mb-6">Sign in to your VedaAI account</p>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-200 text-sm mb-4">
+          {error}
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-4">
         <div>

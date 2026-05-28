@@ -19,6 +19,13 @@ FROM base AS builder
 COPY package*.json ./
 RUN npm install
 COPY . .
+
+# Declare build-time arguments passed by Railway/Docker
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+
 RUN npm run build
 
 FROM base AS prod

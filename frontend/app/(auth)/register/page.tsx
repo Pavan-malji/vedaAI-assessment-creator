@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/authStore';
 
@@ -10,16 +10,23 @@ export default function RegisterPage() {
   const [confirm, setConfirm] = useState('');
   const register = useAuthStore((s: any) => s.register);
   const isLoading = useAuthStore((s: any) => s.isLoading);
+  const error = useAuthStore((s: any) => s.error);
+  const clearError = useAuthStore((s: any) => s.clearError);
   const router = useRouter();
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
     if (password !== confirm) return alert('Passwords do not match');
     try {
       await register(name, email, password);
       router.push('/');
-    } catch (e) {
-      // handled in store
+    } catch (err) {
+      console.error('Registration failed:', err);
     }
   };
 
@@ -27,6 +34,12 @@ export default function RegisterPage() {
     <div className="bg-white rounded-3xl border border-[#EAEDF2] shadow-sm p-8">
       <h1 className="text-2xl font-extrabold mb-2">Create Account</h1>
       <p className="text-xs font-semibold text-gray-500 mb-6">Create your VedaAI account</p>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-200 text-sm mb-4">
+          {error}
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-4">
         <div>

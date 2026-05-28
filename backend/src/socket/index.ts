@@ -18,7 +18,7 @@ const parseCookie = (cookieHeader: string | undefined) => {
 export const initSocket = (httpServer: HttpServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, ''),
       methods: ['GET', 'POST'],
       credentials: true
     }
